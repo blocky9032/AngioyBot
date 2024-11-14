@@ -65,4 +65,4 @@ async def on_ready():
     print(f"{bot.user} è online e pronto a ricevere comandi.")
 
 # Avvio del bot
-bot.run('')
+bot.run('<')
