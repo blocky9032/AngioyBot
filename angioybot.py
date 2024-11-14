@@ -1,3 +1,4 @@
+import os
 import discord
 from discord.ext import commands
 from discord.ui import Modal, TextInput
@@ -65,4 +66,4 @@ async def on_ready():
     print(f"{bot.user} è online e pronto a ricevere comandi.")
 
 # Avvio del bot
-bot.run('<')
+bot.run(os.getenv("TOKEN"))
