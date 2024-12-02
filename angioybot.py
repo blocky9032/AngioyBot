@@ -310,5 +310,4 @@ async def on_ready():
             except Exception as e:
                 print(f"Errore durante l'invio del messaggio di avvio: {e}")
 
-# Avvio del bot server
 bot.run(os.getenv("TOKEN"))
