@@ -11,6 +11,9 @@ intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
+# Variabile globale per tracciare lo stato del meccanismo
+assemblea_attiva = False
+
 # Crea il Modale per raccogliere le informazioni
 class NicknameModal(Modal, title="Imposta il tuo Nickname"):
     nome = TextInput(label="Nome", placeholder="Inserisci il tuo nome", required=True)
@@ -80,6 +83,158 @@ class NicknameButton(discord.ui.View):
         if self.message:
             await self.message.delete()
 
+# Funzione per controllare i ruoli richiesti
+def has_required_role(member):
+    required_roles = ["Rappresentante di Istituto", "Admin del Server"]
+    return any(role.name in required_roles for role in member.roles)
+
+# Comando per abilitare il meccanismo
+@bot.tree.command(name="assemblea_avvia", description="Abilita lo spostamento automatico degli utenti per l'assemblea.")
+async def assemblea_avvia(interaction: discord.Interaction):
+    global assemblea_attiva
+
+    # Controlla se l'utente ha i ruoli necessari
+    if not has_required_role(interaction.user):
+        await interaction.response.send_message(
+            "Non hai i permessi per eseguire questo comando.", ephemeral=True
+        )
+        return
+
+    assemblea_attiva = True
+    await interaction.response.send_message(
+        "Il meccanismo di spostamento automatico è stato **attivato**. Gli utenti in lista d'attesa saranno distribuiti nei canali disponibili.",
+        ephemeral=True
+    )
+
+    # ID dei canali di interesse
+    source_channel_id = 1308155167304060948
+    destination_channels = [
+        1312866730724560906,
+        1312866755676471296,
+        1312866787628417115,
+        1312866807203495967
+    ]
+    log_channel_id = 1305928677841702925
+
+    guild = interaction.guild
+    source_channel = discord.utils.get(guild.voice_channels, id=source_channel_id)
+    log_channel = discord.utils.get(guild.text_channels, id=log_channel_id)
+
+    if source_channel:
+        for member in source_channel.members:
+            # Trova un canale disponibile con meno di 20 membri
+            destination_channel = None
+            for channel_id in destination_channels:
+                channel = discord.utils.get(guild.voice_channels, id=channel_id)
+                if channel and len(channel.members) < 20:
+                    destination_channel = channel
+                    break
+
+            if destination_channel:
+                try:
+                    # Sposta l'utente nel canale disponibile
+                    await member.move_to(destination_channel)
+                    # Log dell'operazione
+                    if log_channel:
+                        await log_channel.send(
+                            f"**{member.display_name}** è stato spostato da {source_channel.name} a {destination_channel.name}."
+                        )
+                except discord.Forbidden:
+                    if log_channel:
+                        await log_channel.send(
+                            f"Permessi insufficienti per spostare {member.display_name}."
+                        )
+                except Exception as e:
+                    if log_channel:
+                        await log_channel.send(
+                            f"Errore nel tentativo di spostare {member.display_name}: {e}"
+                        )
+            else:
+                # Log in caso di nessun canale disponibile
+                if log_channel:
+                    await log_channel.send(
+                        f"**{member.display_name}** non è stato spostato perché tutti i canali di destinazione sono pieni."
+                    )
+
+# Comando per disabilitare il meccanismo
+@bot.tree.command(name="assemblea_ferma", description="Disabilita lo spostamento automatico degli utenti per l'assemblea.")
+async def assemblea_ferma(interaction: discord.Interaction):
+    global assemblea_attiva
+
+    # Controlla se l'utente ha i ruoli necessari
+    if not has_required_role(interaction.user):
+        await interaction.response.send_message(
+            "Non hai i permessi per eseguire questo comando.", ephemeral=True
+        )
+        return
+
+    assemblea_attiva = False
+    await interaction.response.send_message(
+        "Il meccanismo di spostamento automatico è stato **disattivato**.", ephemeral=True
+    )
+
+# Evento per il meccanismo di spostamento
+@bot.event
+async def on_voice_state_update(member, before, after):
+    global assemblea_attiva
+
+    # Controlla se il meccanismo è attivo
+    if not assemblea_attiva:
+        return
+    
+    # ID dei canali di interesse
+    source_channel_id = 1308155167304060948
+    destination_channels = [
+        1312866730724560906,
+        1312871355871658174,
+        1312871383898001438,
+        1312871407235104768
+    ]
+    log_channel_id = 1305928677841702925
+
+    # Controlla se l'utente si è connesso al canale specifico
+    if after.channel and after.channel.id == source_channel_id:
+        guild = member.guild
+        log_channel = discord.utils.get(guild.text_channels, id=log_channel_id)
+
+        # Trova un canale disponibile con meno di 20 membri
+        destination_channel = None
+        for channel_id in destination_channels:
+            channel = discord.utils.get(guild.voice_channels, id=channel_id)
+            if channel and len(channel.members) < 20:
+                destination_channel = channel
+                break
+
+        if destination_channel:
+            try:
+                # Sposta l'utente nel canale disponibile
+                await member.move_to(destination_channel)
+                # Log dell'operazione
+                if log_channel:
+                    # await log_channel.send(
+                    #     f"**{member.display_name}** è entrato in Assemblea (Spostato in {destination_channel.name})"
+                    # )
+                    #print(f"{member.display_name} è entrato in Assemblea (Spostato in {destination_channel.name})")
+                    pass
+            except discord.Forbidden:
+                if log_channel:
+                    # await log_channel.send(
+                    #     f"Permessi insufficienti per spostare {member.display_name}."
+                    # )
+                    print(f"Permessi insufficienti per spostare {member.display_name}.")
+            except Exception as e:
+                if log_channel:
+                    # await log_channel.send(
+                    #     f"Errore nel tentativo di spostare {member.display_name}: {e}"
+                    # )
+                    print(f"Errore nel tentativo di spostare {member.display_name}: {e}")
+        else:
+            # Log in caso di nessun canale disponibile
+            if log_channel:
+                await log_channel.send(
+                    f"**{member.display_name}** non è stato spostato perché tutti i canali di destinazione sono pieni."
+                )
+
 @bot.event
 async def on_member_join(member):
     welcome_channel = discord.utils.get(member.guild.text_channels, name="nickname")
@@ -139,6 +294,21 @@ async def on_ready():
         print(f"Errore di sincronizzazione dei comandi: {e}")
 
     print(f"{bot.user} è online e pronto a ricevere comandi.")
+
+    # ID del canale in cui inviare il messaggio
+    log_channel_id = 1312930597093511198
+
+    # Invia il messaggio di avvio
+    guild = discord.utils.get(bot.guilds)  # Prendi il primo server dove il bot è connesso
+    if guild:
+        log_channel = discord.utils.get(guild.text_channels, id=log_channel_id)
+        if log_channel:
+            try:
+                await log_channel.send(f"{bot.user.name} online - Deployato su Railway")
+            except discord.Forbidden:
+                print("Permesso negato per inviare messaggi nel canale specificato.")
+            except Exception as e:
+                print(f"Errore durante l'invio del messaggio di avvio: {e}")
 
 # Avvio del bot server
 bot.run(os.getenv("TOKEN"))
