@@ -1,6 +1,7 @@
 import os
 import discord
 import asyncio
+import datetime
 from discord.ext import commands
 from discord.ui import Modal, TextInput
 
@@ -114,7 +115,7 @@ async def assemblea_avvia(interaction: discord.Interaction):
         1312866787628417115,
         1312866807203495967
     ]
-    log_channel_id = 1305928677841702925
+    log_channel_id = 1312930597093511198
 
     guild = interaction.guild
     source_channel = discord.utils.get(guild.voice_channels, id=source_channel_id)
@@ -172,6 +173,96 @@ async def assemblea_ferma(interaction: discord.Interaction):
     await interaction.response.send_message(
         "Il meccanismo di spostamento automatico è stato **disattivato**.", ephemeral=True
     )
+    
+# Comando per espellere tutti e disabilitare il meccanismo
+@bot.tree.command(name="assemblea_kick", description="Kicka utenti dai canali vocali esclusi quelli con ruoli specifici.")
+async def assemblea_kick(interaction: discord.Interaction):
+    global assemblea_attiva
+    # ID dei canali vocali da cui rimuovere gli utenti
+    voice_channel_ids = [
+        1312866730724560906,
+        1312871355871658174,
+        1312871383898001438,
+        1312871407235104768
+    ]
+
+    # Controlla i ruoli richiesti
+    required_roles = ["Rappresentante di Istituto", "Admin del Server"]
+
+    if not has_required_role(interaction.user):
+        await interaction.response.send_message("Non hai i permessi per eseguire questo comando.", ephemeral=True)
+        return
+
+    assemblea_attiva = False
+    guild = interaction.guild
+    kicked_members = []
+
+    for channel_id in voice_channel_ids:
+        channel = discord.utils.get(guild.voice_channels, id=channel_id)
+        if not channel:
+            continue
+
+        for member in channel.members:
+            # Controlla se il membro ha i ruoli richiesti
+            if not any(role.name in required_roles for role in member.roles):
+                try:
+                    await member.move_to(None)  # Kicka dal canale vocale
+                    kicked_members.append(member.display_name)
+                except Exception as e:
+                    print(f"Errore nel kick di {member.display_name}: {e}")
+
+    if kicked_members:
+        await interaction.response.send_message(
+            f"Sono stati rimossi dai canali vocali:\n{', '.join(kicked_members)}",
+            ephemeral=True
+        )
+    else:
+        await interaction.response.send_message("Nessun utente rimosso dai canali vocali.", ephemeral=True)
+
+# Comando per esportare la chat dell'assemblea
+@bot.tree.command(name="esporta_chat", description="Esporta i messaggi di oggi dal canale specifico.")
+async def esporta_chat(interaction: discord.Interaction):
+    channel_id = 1306336623105146961
+    channel = discord.utils.get(interaction.guild.text_channels, id=channel_id)
+
+    if not channel:
+        await interaction.response.send_message("Canale non trovato.", ephemeral=True)
+        return
+
+    today = datetime.datetime.utcnow().date()
+    messages_today = []
+
+    async for message in channel.history(limit=None):
+        if message.created_at.date() == today:
+            messages_today.append(f"[{message.created_at}] {message.author.display_name}: {message.content}")
+
+    if not messages_today:
+        await interaction.response.send_message("Nessun messaggio trovato per oggi.", ephemeral=True)
+        return
+
+    # Crea il file con i messaggi
+    file_path = "/mnt/data/today_chat_export.txt"
+    try:
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write("\n".join(messages_today))
+    except Exception as e:
+        await interaction.response.send_message(
+            f"Errore durante il salvataggio del file: {e}", ephemeral=True
+        )
+        return
+
+    # Invia il file all'utente
+    try:
+        await interaction.response.send_message("Ecco i messaggi di oggi:", ephemeral=True)
+        await interaction.user.send(file=discord.File(file_path))
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "Non posso inviarti un messaggio privato. Controlla le impostazioni del tuo account.", ephemeral=True
+        )
+    except Exception as e:
+        await interaction.response.send_message(
+            f"Errore durante l'invio del file: {e}", ephemeral=True
+        )
 
 # Evento per il meccanismo di spostamento
 @bot.event
