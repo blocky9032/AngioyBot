@@ -175,7 +175,7 @@ async def assemblea_ferma(interaction: discord.Interaction):
     )
     
 # Comando per espellere tutti e disabilitare il meccanismo
-@bot.tree.command(name="assemblea_kick", description="Kicka utenti dai canali vocali esclusi quelli con ruoli specifici.")
+@bot.tree.command(name="assemblea_kick", description="Kicka utenti dai canali vocali esclusi gli Admin del Server e i Rappresentanti di Istituto. Disattiva il meccanismo di spostamento automatico.")
 async def assemblea_kick(interaction: discord.Interaction):
     global assemblea_attiva
     # ID dei canali vocali da cui rimuovere gli utenti
@@ -240,11 +240,18 @@ async def esporta_chat(interaction: discord.Interaction):
         await interaction.response.send_message("Nessun messaggio trovato per oggi.", ephemeral=True)
         return
 
-    # Crea il file con i messaggi
-    file_path = "/mnt/data/today_chat_export.txt"
+    # Percorso del file nella stessa directory dello script
+    file_path = os.path.join(os.path.dirname(__file__), "chat_" + today.strftime("%Y-%m-%d") + ".txt")
+
     try:
+        # Rimuovi il file se esiste già
+        if os.path.exists(file_path):
+            os.remove(file_path)
+
+        # Scrivi i messaggi in un nuovo file
         with open(file_path, "w", encoding="utf-8") as file:
             file.write("\n".join(messages_today))
+
     except Exception as e:
         await interaction.response.send_message(
             f"Errore durante il salvataggio del file: {e}", ephemeral=True
