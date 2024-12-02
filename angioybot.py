@@ -222,17 +222,23 @@ async def assemblea_kick(interaction: discord.Interaction):
 # Comando per esportare la chat dell'assemblea
 @bot.tree.command(name="esporta_chat", description="Esporta i messaggi di oggi dal canale specifico.")
 async def esporta_chat(interaction: discord.Interaction):
-    channel_id = 1306336623105146961
-    channel = discord.utils.get(interaction.guild.text_channels, id=channel_id)
+    channel_id = 1306336623105146961  # Canale da cui esportare i messaggi
+    log_channel_id = 1312930597093511198  # Canale in cui inviare il file
+    source_channel = discord.utils.get(interaction.guild.text_channels, id=channel_id)
+    log_channel = discord.utils.get(interaction.guild.text_channels, id=log_channel_id)
 
-    if not channel:
-        await interaction.response.send_message("Canale non trovato.", ephemeral=True)
+    if not source_channel:
+        await interaction.response.send_message("Canale da esportare non trovato.", ephemeral=True)
+        return
+
+    if not log_channel:
+        await interaction.response.send_message("Canale di log non trovato.", ephemeral=True)
         return
 
     today = datetime.datetime.utcnow().date()
     messages_today = []
 
-    async for message in channel.history(limit=None):
+    async for message in source_channel.history(limit=None):
         if message.created_at.date() == today:
             messages_today.append(f"[{message.created_at}] {message.author.display_name}: {message.content}")
 
@@ -240,7 +246,7 @@ async def esporta_chat(interaction: discord.Interaction):
         await interaction.response.send_message("Nessun messaggio trovato per oggi.", ephemeral=True)
         return
 
-    # Percorso del file nella stessa directory dello script
+    # Percorso del file con il nome contenente la data
     file_path = os.path.join(os.path.dirname(__file__), "chat_" + today.strftime("%Y-%m-%d") + ".txt")
 
     try:
@@ -258,17 +264,16 @@ async def esporta_chat(interaction: discord.Interaction):
         )
         return
 
-    # Invia il file all'utente
+    # Invia il file al canale di log
     try:
-        await interaction.response.send_message("Ecco i messaggi di oggi:", ephemeral=True)
-        await interaction.user.send(file=discord.File(file_path))
-    except discord.Forbidden:
-        await interaction.response.send_message(
-            "Non posso inviarti un messaggio privato. Controlla le impostazioni del tuo account.", ephemeral=True
+        await log_channel.send(
+            content=f"Esportazione dei messaggi di oggi dal canale <#{channel_id}>:",
+            file=discord.File(file_path)
         )
+        await interaction.response.send_message("File esportato e inviato nel canale di log.", ephemeral=True)
     except Exception as e:
         await interaction.response.send_message(
-            f"Errore durante l'invio del file: {e}", ephemeral=True
+            f"Errore durante l'invio del file al canale di log: {e}", ephemeral=True
         )
 
 # Evento per il meccanismo di spostamento
