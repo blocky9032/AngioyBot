@@ -2,8 +2,10 @@ import os
 import discord
 import asyncio
 import datetime
+import signal
 from discord.ext import commands
 from discord.ui import Modal, TextInput
+from discord import FFmpegPCMAudio
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -386,6 +388,44 @@ async def kick_if_not_identified(member, message):
 
         except Exception as e:
             print(f"Errore nel kick di {member}: {e}")
+            
+# Comando per riprodurre un file audio da un link diretto
+@bot.tree.command(name="play_audio", description="Riproduci un file audio da un link diretto (.mp3)")
+async def play_audio(interaction: discord.Interaction, url: str):
+    # Verifica se l'utente ha i permessi necessari
+    if not has_required_role(interaction.user):
+        await interaction.response.send_message(
+            "Non hai i permessi per eseguire questo comando.", ephemeral=True
+        )
+        return
+
+    # ID del canale vocale
+    channel_id = 1308155167304060948
+    guild = interaction.guild
+    channel = discord.utils.get(guild.voice_channels, id=channel_id)
+
+    if channel:
+        try:
+            # Unisciti al canale vocale
+            voice_client = await channel.connect()
+            await interaction.response.send_message(
+                f"Il bot è entrato nel canale {channel.name}. Avvio della riproduzione..."
+            )
+
+            # Usa FFmpegPCMAudio per riprodurre l'audio dal link diretto
+            audio_source = FFmpegPCMAudio(url)
+            voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
+
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                "Non ho permessi per unirmi a questo canale.", ephemeral=True
+            )
+        except Exception as e:
+            await interaction.response.send_message(
+                f"Errore durante la riproduzione: {e}", ephemeral=True
+            )
+    else:
+        await interaction.response.send_message("Canale vocale non trovato.", ephemeral=True)
 
 # Evento di avvio del bot
 @bot.event
@@ -407,10 +447,37 @@ async def on_ready():
         log_channel = discord.utils.get(guild.text_channels, id=log_channel_id)
         if log_channel:
             try:
-                await log_channel.send(f"{bot.user.name} online - Deployato su Railway")
+                await log_channel.send(f"{bot.user.name} online - Deploy completato su Railway")
             except discord.Forbidden:
                 print("Permesso negato per inviare messaggi nel canale specificato.")
             except Exception as e:
                 print(f"Errore durante l'invio del messaggio di avvio: {e}")
+
+# Evento shutdown
+async def send_shutdown_message():
+    try:
+        log_channel_id = 1312930597093511198
+
+        guild = discord.utils.get(bot.guilds)
+        if not guild:
+            print("Server non trovato. Impossibile inviare il messaggio di spegnimento.")
+            return
+
+        channel = discord.utils.get(guild.text_channels, id=log_channel_id)
+        if channel:
+            await channel.send(f"{bot.user.name} offline - Deployment su Railway... (trigger da nuovo push)")
+        else:
+            print("Canale non trovato. Impossibile inviare il messaggio di spegnimento.")
+    except Exception as e:
+        print(f"Errore durante l'invio del messaggio di spegnimento: {e}")
+
+def shutdown_handler(signum, frame):
+    loop = asyncio.get_event_loop()
+    loop.create_task(send_shutdown_message())
+    loop.create_task(bot.close())  # Chiude il bot
+
+# Registra il signal handler per SIGINT e SIGTERM
+signal.signal(signal.SIGINT, shutdown_handler)
+signal.signal(signal.SIGTERM, shutdown_handler)
 
 bot.run(os.getenv("TOKEN"))
