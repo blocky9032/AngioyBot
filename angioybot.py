@@ -233,7 +233,7 @@ async def assemblea_ferma(interaction: discord.Interaction):
     )
     
 # Comando per espellere tutti e disabilitare il meccanismo
-@bot.tree.command(name="assemblea_kick", description="Kicka utenti dai canali vocali esclusi gli Admin del Server e i Rappresentanti di Istituto. Disattiva il meccanismo di spostamento automatico.")
+@bot.tree.command(name="assemblea_kick", description="Kicka utenti dai canali vocali esclusi gli A e i RI. Disattiva il meccanismo di spostamento automatico.")
 async def assemblea_kick(interaction: discord.Interaction):
     global assemblea_attiva
     # ID dei canali vocali da cui rimuovere gli utenti
