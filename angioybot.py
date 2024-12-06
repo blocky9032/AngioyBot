@@ -8,7 +8,7 @@ import requests
 from discord.app_commands import Choice
 from discord.ext import commands
 from discord.ui import Modal, TextInput
-from discord import FFmpegPCMAudio, PCMVolumeTransformer
+from discord import FFmpegOpusAudio
 from tempfile import NamedTemporaryFile
 
 intents = discord.Intents.default()
@@ -141,7 +141,12 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_name: s
             return
 
         # Riproduci il file audio locale
-        audio_source = FFmpegPCMAudio(tmp_file_path)
+        FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
+        audio_source = discord.FFmpegOpusAudio(
+            source=tmp_file_path,  # Sorgente audio (può essere un file locale o un URL)
+            executable="ffmpeg",  # Percorso dell'eseguibile FFmpeg
+            **FFMPEG_OPTIONS      # Passaggio delle opzioni
+        )
         voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
 
         # Attendi la fine della riproduzione
@@ -155,10 +160,12 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_name: s
         await interaction.followup.send(
             f"Errore durante la riproduzione: {e}", ephemeral=True
         )
+        print("Errore durante la riproduzione", e)
     except Exception as e:
         await interaction.followup.send(
             f"Errore inaspettato: {e}", ephemeral=True
         )
+        print("Errore inaspettato", e)
     finally:
         # Disconnetti dal canale vocale dopo aver finito di riprodurre
         if voice_client and voice_client.is_connected():
