@@ -1,12 +1,15 @@
 import os
+import time
 import discord
 import asyncio
 import datetime
 import signal
+import requests
 from discord.app_commands import Choice
 from discord.ext import commands
 from discord.ui import Modal, TextInput
-from discord import FFmpegPCMAudio
+from discord import FFmpegPCMAudio, PCMVolumeTransformer
+from tempfile import NamedTemporaryFile
 
 intents = discord.Intents.default()
 intents.guilds = True
@@ -95,56 +98,68 @@ def has_required_role(member):
           
 # Comando per riprodurre un file audio da un link diretto
 @bot.tree.command(name="play_audio", description="Riproduci un file audio da un link diretto (.mp3)")
-async def play_audio(
-    interaction: discord.Interaction, 
-    url: str, 
-    channel_name: str
-):
+async def play_audio(interaction: discord.Interaction, url: str, channel_name: str):
+    # Verifica se l'utente ha i permessi necessari
+    if not has_required_role(interaction.user):
+        await interaction.response.send_message(
+            "Non hai i permessi per eseguire questo comando.", ephemeral=True
+        )
+        return
+
+    # Trova il canale vocale specificato
+    guild = interaction.guild
+    channel = discord.utils.get(guild.voice_channels, name=channel_name)
+
+    if channel is None:
+        await interaction.response.send_message(
+            f"Canale vocale `{channel_name}` non trovato.", ephemeral=True
+        )
+        return
+
     try:
-        # Verifica permessi
-        if not has_required_role(interaction.user):
-            await interaction.response.send_message(
-                "Non hai i permessi per eseguire questo comando.", ephemeral=True
-            )
-            return
-
-        # Trova il canale vocale basandoti sul nome
-        guild = interaction.guild
-        channel = discord.utils.get(guild.voice_channels, name=channel_name)
-
-        if not channel:
-            await interaction.response.send_message(
-                f"Canale vocale `{channel_name}` non trovato.", ephemeral=True
-            )
-            return
-
-        # Connettiti al canale vocale
+        # Unisciti al canale vocale
         voice_client = await channel.connect()
         await interaction.response.send_message(
-            f"Il bot è entrato nel canale `{channel.name}`. Avvio della riproduzione..."
+            f"Il bot è entrato nel canale vocale `{channel_name}`. Avvio della riproduzione..."
         )
 
-        # Configura e avvia la riproduzione audio
-        audio_source = FFmpegPCMAudio(url)
+        # Scarica il file audio temporaneamente nella stessa cartella dello script
+        try:
+            response = requests.get(url, stream=True)
+            if response.status_code == 200:
+                # Crea un file temporaneo
+                with NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
+                    tmp_file.write(response.content)
+                    tmp_file_path = tmp_file.name
+            else:
+                await interaction.response.send_message("Errore nel download del file audio.", ephemeral=True)
+                return
+        except Exception as e:
+            await interaction.response.send_message(f"Errore nel download del file: {e}", ephemeral=True)
+            return
+
+        # Riproduci il file audio locale
+        audio_source = FFmpegPCMAudio(tmp_file_path)
         voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
 
+        # Attendi la fine della riproduzione
+        while voice_client.is_playing():
+            await asyncio.sleep(1)
+
+        # Elimina il file temporaneo dopo la riproduzione
+        try:
+            os.remove(tmp_file_path)
+        except Exception as e:
+            print(f"Errore nell'eliminazione del file temporaneo: {e}")
+
     except discord.ClientException as e:
-        if isinstance(e, discord.opus.OpusNotLoaded):
-            await interaction.followup.send(
-                "Errore: la libreria Opus non è caricata. Assicurati di averla installata.", ephemeral=True
-            )
-        else:
-            await interaction.followup.send(
-                f"Errore durante la connessione o la riproduzione: {e}", ephemeral=True
-            )
-
+        await interaction.response.send_message(
+            f"Errore durante la riproduzione: {e}", ephemeral=True
+        )
     except Exception as e:
-        await interaction.followup.send(f"Errore sconosciuto: {e}", ephemeral=True)
-
-    finally:
-        # Disconnettiti dal canale vocale al termine della riproduzione
-        if voice_client and voice_client.is_connected():
-            await voice_client.disconnect()
+        await interaction.response.send_message(
+            f"Errore inaspettato: {e}", ephemeral=True
+        )
 
 
 # Autocomplete per i canali vocali
@@ -512,4 +527,6 @@ def shutdown_handler(signum, frame):
 signal.signal(signal.SIGINT, shutdown_handler)
 signal.signal(signal.SIGTERM, shutdown_handler)
 
+print("Starting AngioyBot.py in 5 seconds...")
+time.sleep(5)
 bot.run(os.getenv("TOKEN"))
