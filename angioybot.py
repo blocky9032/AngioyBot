@@ -3,6 +3,7 @@ import discord
 import asyncio
 import datetime
 import signal
+from discord.app_commands import Choice
 from discord.ext import commands
 from discord.ui import Modal, TextInput
 from discord import FFmpegPCMAudio
@@ -94,7 +95,11 @@ def has_required_role(member):
           
 # Comando per riprodurre un file audio da un link diretto
 @bot.tree.command(name="play_audio", description="Riproduci un file audio da un link diretto (.mp3)")
-async def play_audio(interaction: discord.Interaction, url: str, channel_id: int):
+async def play_audio(
+    interaction: discord.Interaction, 
+    url: str, 
+    channel_name: str
+):
     try:
         # Verifica permessi
         if not has_required_role(interaction.user):
@@ -103,24 +108,23 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_id: int
             )
             return
 
-        # Ottieni il canale vocale
+        # Trova il canale vocale basandoti sul nome
         guild = interaction.guild
-        channel = discord.utils.get(guild.voice_channels, id=channel_id)
+        channel = discord.utils.get(guild.voice_channels, name=channel_name)
 
         if not channel:
             await interaction.response.send_message(
-                "Canale vocale non trovato.", ephemeral=True
+                f"Canale vocale `{channel_name}` non trovato.", ephemeral=True
             )
             return
 
         # Connettiti al canale vocale
         voice_client = await channel.connect()
         await interaction.response.send_message(
-            f"Il bot è entrato nel canale {channel.name}. Avvio della riproduzione..."
+            f"Il bot è entrato nel canale `{channel.name}`. Avvio della riproduzione..."
         )
 
         # Configura e avvia la riproduzione audio
-        discord.opus.load_opus()
         audio_source = FFmpegPCMAudio(url)
         voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
 
@@ -141,6 +145,21 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_id: int
         # Disconnettiti dal canale vocale al termine della riproduzione
         if voice_client and voice_client.is_connected():
             await voice_client.disconnect()
+
+
+# Autocomplete per i canali vocali
+@play_audio.autocomplete("channel_name")
+async def autocomplete_channel_name(
+    interaction: discord.Interaction,
+    current: str
+) -> list[Choice]:
+    """Suggerisce i nomi dei canali vocali basandosi sul testo digitato."""
+    voice_channels = interaction.guild.voice_channels
+    return [
+        Choice(name=channel.name, value=channel.name)
+        for channel in voice_channels
+        if current.lower() in channel.name.lower()
+    ]
 
 # Comando per abilitare il meccanismo
 @bot.tree.command(name="assemblea_avvia", description="Abilita lo spostamento automatico degli utenti per l'assemblea.")
