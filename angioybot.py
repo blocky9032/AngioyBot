@@ -390,8 +390,7 @@ async def kick_if_not_identified(member, message):
             print(f"Errore nel kick di {member}: {e}")
             
 # Comando per riprodurre un file audio da un link diretto
-@bot.tree.command(name="play_audio", description="Riproduci un file audio da un link diretto (.mp3)")
-async def play_audio(interaction: discord.Interaction, url: str):
+async def play_audio(interaction: discord.Interaction, url: str, channel_name: str = None):
     # Verifica se l'utente ha i permessi necessari
     if not has_required_role(interaction.user):
         await interaction.response.send_message(
@@ -399,33 +398,50 @@ async def play_audio(interaction: discord.Interaction, url: str):
         )
         return
 
-    # ID del canale vocale
-    channel_id = 1308155167304060948
     guild = interaction.guild
-    channel = discord.utils.get(guild.voice_channels, id=channel_id)
+    channel = None
 
-    if channel:
-        try:
-            # Unisciti al canale vocale
-            voice_client = await channel.connect()
+    # Cerca il canale specificato dall'utente
+    if channel_name:
+        channel = discord.utils.get(guild.voice_channels, name=channel_name)
+        if not channel:
             await interaction.response.send_message(
-                f"Il bot è entrato nel canale {channel.name}. Avvio della riproduzione..."
+                f"Il canale vocale '{channel_name}' non è stato trovato.", ephemeral=True
             )
-
-            # Usa FFmpegPCMAudio per riprodurre l'audio dal link diretto
-            audio_source = FFmpegPCMAudio(url)
-            voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
-
-        except discord.Forbidden:
-            await interaction.response.send_message(
-                "Non ho permessi per unirmi a questo canale.", ephemeral=True
-            )
-        except Exception as e:
-            await interaction.response.send_message(
-                f"Errore durante la riproduzione: {e}", ephemeral=True
-            )
+            return
     else:
-        await interaction.response.send_message("Canale vocale non trovato.", ephemeral=True)
+        # Usa il canale vocale dell'utente se nessun canale è specificato
+        if interaction.user.voice and interaction.user.voice.channel:
+            channel = interaction.user.voice.channel
+        else:
+            await interaction.response.send_message(
+                "Specifica un canale vocale o unisciti a uno prima di usare questo comando.", ephemeral=True
+            )
+            return
+
+    try:
+        # Unisciti al canale vocale
+        voice_client = await channel.connect()
+        await interaction.response.send_message(
+            f"Il bot è entrato nel canale {channel.name}. Avvio della riproduzione..."
+        )
+
+        # Usa FFmpegPCMAudio per riprodurre l'audio dal link diretto
+        audio_source = FFmpegPCMAudio(url)
+        voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
+
+    except discord.ClientException:
+        await interaction.response.send_message(
+            "Sono già connesso a un canale vocale.", ephemeral=True
+        )
+    except discord.Forbidden:
+        await interaction.response.send_message(
+            "Non ho permessi per unirmi a questo canale.", ephemeral=True
+        )
+    except Exception as e:
+        await interaction.response.send_message(
+            f"Errore durante la riproduzione: {e}", ephemeral=True
+        )
 
 # Evento di avvio del bot
 @bot.event
