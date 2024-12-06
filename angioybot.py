@@ -120,6 +120,7 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_id: int
         )
 
         # Configura e avvia la riproduzione audio
+        discord.opus.load_opus()
         audio_source = FFmpegPCMAudio(url)
         voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
 
