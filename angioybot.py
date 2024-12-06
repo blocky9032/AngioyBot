@@ -120,22 +120,24 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_name: s
         # Unisciti al canale vocale
         voice_client = await channel.connect()
         await interaction.response.send_message(
-            f"Il bot è entrato nel canale vocale `{channel_name}`. Avvio della riproduzione..."
+            f"Il bot è entrato nel canale vocale `{channel_name}`. Download del file audio in corso..."
         )
 
-        # Scarica il file audio temporaneamente nella stessa cartella dello script
-        try:
+        # Funzione per scaricare il file su un altro thread
+        def download_file():
             response = requests.get(url, stream=True)
             if response.status_code == 200:
-                # Crea un file temporaneo
                 with NamedTemporaryFile(delete=False, suffix=".mp3") as tmp_file:
                     tmp_file.write(response.content)
-                    tmp_file_path = tmp_file.name
+                    return tmp_file.name
             else:
-                await interaction.response.send_message("Errore nel download del file audio.", ephemeral=True)
-                return
+                raise Exception("Errore nel download del file audio.")
+
+        # Scarica il file su un altro thread
+        try:
+            tmp_file_path = await asyncio.to_thread(download_file)
         except Exception as e:
-            await interaction.response.send_message(f"Errore nel download del file: {e}", ephemeral=True)
+            await interaction.followup.send(f"Errore nel download del file: {e}", ephemeral=True)
             return
 
         # Riproduci il file audio locale
@@ -147,20 +149,20 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_name: s
             await asyncio.sleep(1)
 
         # Elimina il file temporaneo dopo la riproduzione
-        try:
-            os.remove(tmp_file_path)
-        except Exception as e:
-            print(f"Errore nell'eliminazione del file temporaneo: {e}")
+        os.remove(tmp_file_path)
 
     except discord.ClientException as e:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Errore durante la riproduzione: {e}", ephemeral=True
         )
     except Exception as e:
-        await interaction.response.send_message(
+        await interaction.followup.send(
             f"Errore inaspettato: {e}", ephemeral=True
         )
-
+    finally:
+        # Disconnetti dal canale vocale dopo aver finito di riprodurre
+        if voice_client and voice_client.is_connected():
+            await voice_client.disconnect()
 
 # Autocomplete per i canali vocali
 @play_audio.autocomplete("channel_name")
