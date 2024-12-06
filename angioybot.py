@@ -390,6 +390,7 @@ async def kick_if_not_identified(member, message):
             print(f"Errore nel kick di {member}: {e}")
             
 # Comando per riprodurre un file audio da un link diretto
+@bot.tree.command(name="play_audio", description="Riproduci un file audio da un link diretto (.mp3)")
 async def play_audio(interaction: discord.Interaction, url: str, channel_name: str = None):
     # Verifica se l'utente ha i permessi necessari
     if not has_required_role(interaction.user):
