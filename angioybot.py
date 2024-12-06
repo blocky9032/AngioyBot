@@ -141,12 +141,7 @@ async def play_audio(interaction: discord.Interaction, url: str, channel_name: s
             return
 
         # Riproduci il file audio locale
-        FFMPEG_OPTIONS = {'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5','options': '-vn -filter:a "volume=0.25"'}
-        audio_source = discord.FFmpegOpusAudio(
-            source=tmp_file_path,  # Sorgente audio (può essere un file locale o un URL)
-            executable="ffmpeg",  # Percorso dell'eseguibile FFmpeg
-            **FFMPEG_OPTIONS      # Passaggio delle opzioni
-        )
+        audio_source = FFmpegOpusAudio(tmp_file_path)
         voice_client.play(audio_source, after=lambda e: print("Riproduzione terminata.", e))
 
         # Attendi la fine della riproduzione
