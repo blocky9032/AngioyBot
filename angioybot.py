@@ -54,7 +54,7 @@ class NicknameModal(Modal, title="Imposta il tuo Nickname"):
             # Cambia il nickname dell'utente
             await interaction.user.edit(nick=nickname)
             await interaction.user.add_roles(discord.utils.get(interaction.user.guild.roles, name=role))
-            destination_channel = discord.utils.get(interaction.guild.text_channels, name="registro-presenze")
+            destination_channel = discord.utils.get(interaction.guild.text_channels, name="chat-assemblea")
             if destination_channel:
                 await interaction.response.send_message(
                     f"Il tuo nickname è stato aggiornato. Clicca qui per continuare: {destination_channel.mention}",
@@ -62,7 +62,7 @@ class NicknameModal(Modal, title="Imposta il tuo Nickname"):
                 )
             else:
                 await interaction.response.send_message(
-                    "Il tuo nickname è stato aggiornato, ma il canale 'registro-presenze' non è stato trovato.",
+                    "Il tuo nickname è stato aggiornato.",
                     ephemeral=True
                 )
 
